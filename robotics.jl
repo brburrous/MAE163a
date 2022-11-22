@@ -4,6 +4,16 @@
 using Markdown
 using InteractiveUtils
 
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    quote
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
+        el
+    end
+end
+
 # ╔═╡ 625a9d5c-62c0-11ed-3363-bf1b1417eda1
 using SymPy, Latexify, PlutoUI, LaTeXStrings
 
@@ -38,10 +48,16 @@ begin
 	end
 	
 	function split(Ts::Vector, i, target)
-		invT = [inverse(Ts[j]) for j = i:-1:1]
-		lh = reduce(*, invT)*target
-		lh = simplify.(lh)
-		rh = simplify.(reduce(*, Ts[i+1:end]))
+		if i != 0
+			invT = [inverse(Ts[j]) for j = i:-1:1]
+			lh = reduce(*, invT)*target
+			lh = simplify.(lh)
+			rh = simplify.(reduce(*, Ts[i+1:end]))
+		else
+			rh = reduce(*, Ts)
+			rh = simplify.(rh)
+			lh = target
+		end
 		return [lh, rh]
 	end
 	
@@ -73,8 +89,11 @@ target = [
 	0 0 0 1
 ]
 
+# ╔═╡ d938636d-f678-4210-993a-d5a16f0ff2fa
+@bind i Slider(0:length(Ts)-1, show_value=true)
+
 # ╔═╡ 8726790c-f378-49df-897c-10dd3f07d1d4
-splitEq = split(Ts, 2, target)
+splitEq = split(Ts, i, target)
 
 # ╔═╡ d3cddad4-c4c2-4e36-bcef-1f2b261e51dd
 testEq = splitEq[1][1]
@@ -82,8 +101,76 @@ testEq = splitEq[1][1]
 # ╔═╡ 27ab9d60-c4f1-4560-a316-088df657f55b
 string(testEq)
 
-# ╔═╡ 4b1d01d1-546e-4121-8eab-3c7162054fe6
+# ╔═╡ 22430021-1347-4d11-a5e7-159915eb9b70
+function getEq(Ts, i, target, n)
+	splitEq = split(Ts, i, target)
+	eqs = collect(zip(splitEq[1], splitEq[2]))
+	eq = simplify.(eqs[n])
+end
 
+# ╔═╡ 4b1d01d1-546e-4121-8eab-3c7162054fe6
+T01 = [
+	 cos(θ1) -sin(θ1) 0 0
+	sin(θ1) cos(θ1) 0 0
+ 	 0 		 0  	 1 0
+	 0 		 0 		 0 1
+]
+
+# ╔═╡ 7a1f1531-f99c-4906-93b6-8b52701eb5fe
+T12 = [
+	cos(θ2) -sin(θ2) 0 0
+	0 0 1 0 
+	-sin(θ2) -cos(θ2) 0 0
+	 0 		 0 		 0 1
+]
+
+# ╔═╡ 7f8a3a00-77c4-4761-88f4-933c51e2d6b1
+@vars a2 a3 d4 θ5 θ6
+
+# ╔═╡ 208e0373-199c-4240-8da0-79eb588f9f7b
+T23 = [
+	 cos(θ3) -sin(θ3) 0 a2
+	sin(θ3) cos(θ3) 0 0
+ 	 0 		 0  	 1 d3
+	 0 		 0 		 0 1
+]
+
+
+# ╔═╡ aba4e8d1-9c4f-4dbc-938a-9697ce19a6dc
+T34 = [
+	cos(θ4) -sin(θ4) 0 a3
+	0 0 1 d4 
+	-sin(θ4) -cos(θ4) 0 0
+	 0 		 0 		 0 1
+]
+
+# ╔═╡ 97b3e997-f3e9-4fea-9863-c892557a338d
+T45 = [
+	cos(θ5) -sin(θ5) 0 0
+	0 0 -1 0
+	sin(θ5) cos(θ5) 0 0
+	 0 		 0 		 0 1
+]
+
+# ╔═╡ 3ac89c31-f821-4217-822b-64f77729967b
+T56 = [
+	cos(θ6) -sin(θ6) 0 0
+	0 0 1 0
+	-sin(θ6) -cos(θ6) 0 0
+	 0 		 0 		 0 1
+]
+
+# ╔═╡ e3d67624-4784-46a8-a495-10631bcc3e4a
+Tlist = [T01, T12, T23, T34, T45, T56]
+
+# ╔═╡ b343011d-8f6e-4b3f-8da2-9be085b45804
+sympy.simplify(T01^-1)
+
+# ╔═╡ bdcdcb96-d24d-4455-9e16-e3737d865dba
+T12^-1
+
+# ╔═╡ cea3d0ce-d717-49a1-942f-6a97d2b94ae4
+simplify.(reduce(*, Tlist))
 
 # ╔═╡ e5077ec3-6b48-4865-945d-088b8eadfcef
 begin 
@@ -117,7 +204,127 @@ end
 # ╔═╡ 1c62a30e-2e44-4c55-b6f7-c483746847f2
 eqsList(Ts, 3, target)
 
+# ╔═╡ 2b87ed37-9daf-455e-9f17-9036cb4f5be5
+eqsList(Tlist, 1, target)
+
 # ╔═╡ 3285d327-f799-4abd-9e70-d4535f6bac88
+typeof(shortEq(simplify(cos(θ1)cos(θ2)-sin(θ2)sin(θ1))))
+
+# ╔═╡ 9a7b3b03-83d3-46fd-b9c1-5d6c3344e7d8
+
+
+# ╔═╡ 83cf5f43-4691-4bf0-ab09-286f7600f547
+
+
+# ╔═╡ 352dfa4b-859c-45b2-9133-1e28504857e0
+
+
+# ╔═╡ e8ab5a3b-a114-452f-962f-5f35a3064ec9
+
+
+# ╔═╡ 061f31b8-4778-4df0-9178-7837601664ac
+
+
+# ╔═╡ a1435da6-fd8b-49b4-aaa6-0750bd305ba1
+function invKine(x, y, z)
+	θ0 = atan(y, x)
+	xp = sqrt(x^2 + y^2)
+	yp = z
+
+	c2 = (xp^2 + yp^2 -l1^2 - l2^2)
+	s2_1 = sqrt(1- c2^2)
+	s2_2 = sqrt(1- c2^2)
+
+	θ2_1 = atan(c2, s2_1)
+	θ2_2 = atan(c2, s2_2)
+
+	
+	
+	k1 = l1 + l2*c2
+	k2_1 = l2*s2_1
+	k2_2 = l2*s2_2
+
+	k1 = r*cos(γ)
+	θ1_1 = atan(y, x) - atan(k2_1, k1)
+	θ1_2 = atan(y, x) - atan(k2_2, k1)
+
+	θ3_1 = ϕ - θ1_1 - θ2_1
+	θ3_1 = ϕ - θ1_2 - θ2_2
+
+	return ([θ0, θ1_1, θ2_1, θ3_1],[θ0, θ1_2, θ2_2, θ3_2])
+end
+
+# ╔═╡ 8691754d-8e1a-4e09-b6d2-d46b2542871d
+@vars d5
+
+# ╔═╡ e6e7084f-44c6-4fb9-844b-4f727c7e124a
+projDHs = [
+	0 		0 		0 		θ1
+	PI/2 	0	 	L1 		θ2
+	0 		L2 		0 		θ3
+	0 		L3 		0 		θ4
+	0 		L4 		d5 		0
+]
+
+# ╔═╡ ae721655-fa6e-4b3b-98f5-baa0853968be
+T_proj = transforms(projDHs)
+
+# ╔═╡ b1218e42-ab66-4697-9b9c-4e8847a296bd
+Tfinal = simplify.(reduce(*, T_proj))
+
+# ╔═╡ 5139a3e1-da60-465e-b9af-140a3edc484e
+eqsList(T_proj, 0, target)
+
+# ╔═╡ 5c289151-54cf-48e6-9be4-e7955790f391
+# Solution for theta 3
+let
+	eq1 = (Tfinal[1, 4], target[1, 4]).-(L1*sin(θ1) + L4*cos(θ1)*cos(θ2 + θ3 + θ4) + d5*sin(θ1))
+	eq2 = (Tfinal[2, 4], target[2, 4]).-(-L1*cos(θ1) + L4*sin(θ1)*cos(θ2 + θ3 + θ4) - d5*cos(θ1))
+	eq3 = (Tfinal[3, 4], target[3, 4]).-L4*sin(θ2 + θ3 + θ4)
+	shortEqs = [shortEq.(x) for x in [eq1, eq2, eq3]]
+
+	lh = simplify.(eq1.^2 .+ eq2.^2 .+ eq3.^2)[1]
+	rh = simplify.(eq1.^2 .+ eq2.^2 .+ eq3.^2)[2]
+	c3 = simplify((rh - (L2^2 + L3^2))/(2*L2*L3))
+	s3 = sqrt(1-c3^2)
+	theta3 = atan(c3, s3)
+end
+
+# ╔═╡ 6be2891e-a17a-442d-85cd-16ae138850fb
+let
+	s234 = getEq(T_proj, 0, target, 3)[1]
+	c234 = getEq(T_proj, 0, target, 7)[1]
+	theta234 = atan(c234, s234)
+	theta4 = theta234 - θ3 - θ2
+end
+
+# ╔═╡ a928afbc-0c50-4d1a-8351-44cdf5d5fd8d
+# Solution for theta 2
+let
+	eq1 = (Tfinal[1, 4], target[1, 4]).-(L1*sin(θ1) + L4*cos(θ1)*cos(θ2 + θ3 + θ4) + d5*sin(θ1))
+
+	eq3 = (Tfinal[3, 4], target[3, 4]).-L4*sin(θ2 + θ3 + θ4)
+	# shortEqs = [shortEq.(x) for x in [eq1, eq2, eq3]]
+
+	a = L2*cos(θ1) + L3*cos(θ1)*cos(θ3)
+	c = -L3*cos(θ1)*sin(θ3)
+	e = L3*sin(θ3)
+	f = L2 + L3*cos(θ3)
+
+	d = eq1[2]
+	g = eq3[2]
+	# simplify(a*f-c*e)
+
+	if (a*f - c*e) > 0
+		theta2 = atan(a*g-d*e, d*f-c*g)
+	else
+		theta2 = atan(d*e-a*g, c*d-d*f)
+	end
+
+	theta2
+end
+
+# ╔═╡ 91e7cc11-ead7-4357-bcf6-450aa8482036
 
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -141,7 +348,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.2"
 manifest_format = "2.0"
-project_hash = "fd6eb55c34118e51d10ef443afecf613737419ac"
+project_hash = "05707eabb8148640957732d131ada7cdb7369c00"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -189,9 +396,9 @@ version = "0.2.3"
 
 [[deps.Compat]]
 deps = ["Dates", "LinearAlgebra", "UUIDs"]
-git-tree-sha1 = "3ca828fe1b75fa84b021a7860bd039eaea84d2f2"
+git-tree-sha1 = "aaabba4ce1b7f8a9b34c015053d3b1edf60fa49c"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.3.0"
+version = "4.4.0"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -379,9 +586,9 @@ version = "1.4.1"
 
 [[deps.Parsers]]
 deps = ["Dates", "SnoopPrecompile"]
-git-tree-sha1 = "cceb0257b662528ecdf0b4b4302eb00e767b38e7"
+git-tree-sha1 = "b64719e8b4504983c7fca6cc9db3ebc8acc2a4d6"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.5.0"
+version = "2.5.1"
 
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
@@ -531,19 +738,47 @@ version = "17.4.0+0"
 # ╠═625a9d5c-62c0-11ed-3363-bf1b1417eda1
 # ╠═34827925-8a91-4ae9-ac10-2b9f412ac97c
 # ╠═3aa6b114-e38f-4f35-80ab-490d0fbe94de
-# ╟─12bb4f91-d0cd-41ba-9d2f-284ab51eb458
+# ╠═12bb4f91-d0cd-41ba-9d2f-284ab51eb458
 # ╠═f3a37ec8-347b-4221-866f-688bc6781f16
 # ╠═30d171e2-f450-4aff-bfa3-52b372236dc5
 # ╠═16e67336-e47b-4e56-bf6e-526c50c7854b
 # ╠═c2568846-c99e-4e5c-89e3-34ab422b764f
 # ╠═75f669cb-4313-4e35-a5b9-6c7fb28455bf
+# ╠═d938636d-f678-4210-993a-d5a16f0ff2fa
 # ╠═8726790c-f378-49df-897c-10dd3f07d1d4
 # ╠═d3cddad4-c4c2-4e36-bcef-1f2b261e51dd
 # ╠═27ab9d60-c4f1-4560-a316-088df657f55b
 # ╠═08d75333-d848-41f9-b49a-9239b7654658
+# ╠═22430021-1347-4d11-a5e7-159915eb9b70
 # ╠═1c62a30e-2e44-4c55-b6f7-c483746847f2
 # ╠═4b1d01d1-546e-4121-8eab-3c7162054fe6
+# ╠═7a1f1531-f99c-4906-93b6-8b52701eb5fe
+# ╠═7f8a3a00-77c4-4761-88f4-933c51e2d6b1
+# ╠═208e0373-199c-4240-8da0-79eb588f9f7b
+# ╠═aba4e8d1-9c4f-4dbc-938a-9697ce19a6dc
+# ╠═97b3e997-f3e9-4fea-9863-c892557a338d
+# ╠═3ac89c31-f821-4217-822b-64f77729967b
+# ╠═e3d67624-4784-46a8-a495-10631bcc3e4a
+# ╠═b343011d-8f6e-4b3f-8da2-9be085b45804
+# ╠═bdcdcb96-d24d-4455-9e16-e3737d865dba
+# ╠═2b87ed37-9daf-455e-9f17-9036cb4f5be5
+# ╠═cea3d0ce-d717-49a1-942f-6a97d2b94ae4
 # ╠═e5077ec3-6b48-4865-945d-088b8eadfcef
 # ╠═3285d327-f799-4abd-9e70-d4535f6bac88
+# ╠═9a7b3b03-83d3-46fd-b9c1-5d6c3344e7d8
+# ╠═83cf5f43-4691-4bf0-ab09-286f7600f547
+# ╠═352dfa4b-859c-45b2-9133-1e28504857e0
+# ╠═e8ab5a3b-a114-452f-962f-5f35a3064ec9
+# ╠═061f31b8-4778-4df0-9178-7837601664ac
+# ╠═a1435da6-fd8b-49b4-aaa6-0750bd305ba1
+# ╠═8691754d-8e1a-4e09-b6d2-d46b2542871d
+# ╠═e6e7084f-44c6-4fb9-844b-4f727c7e124a
+# ╠═ae721655-fa6e-4b3b-98f5-baa0853968be
+# ╠═b1218e42-ab66-4697-9b9c-4e8847a296bd
+# ╠═5139a3e1-da60-465e-b9af-140a3edc484e
+# ╠═5c289151-54cf-48e6-9be4-e7955790f391
+# ╠═6be2891e-a17a-442d-85cd-16ae138850fb
+# ╠═a928afbc-0c50-4d1a-8351-44cdf5d5fd8d
+# ╠═91e7cc11-ead7-4357-bcf6-450aa8482036
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
