@@ -1,27 +1,70 @@
 ### A Pluto.jl notebook ###
-# v0.19.14
+# v0.19.16
 
 using Markdown
 using InteractiveUtils
 
-# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
-macro bind(def, element)
-    quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
-        local el = $(esc(element))
-        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
-        el
-    end
-end
-
 # ╔═╡ 625a9d5c-62c0-11ed-3363-bf1b1417eda1
 using SymPy, Latexify, PlutoUI, LaTeXStrings
 
+# ╔═╡ 78fc5793-bd2d-4159-a838-3a56e1b0ee35
+using LinearAlgebra
+
 # ╔═╡ 34827925-8a91-4ae9-ac10-2b9f412ac97c
-@vars θ1 θ2 θ3 θ4 L1 L2 L3 L4 d2 d3
+@vars θ1 θ2 θ3 θ4 L1 L2 L3 L4 d5
 
-# ╔═╡ 3aa6b114-e38f-4f35-80ab-490d0fbe94de
+# ╔═╡ c2568846-c99e-4e5c-89e3-34ab422b764f
+@vars r₁₁ r₁₂ r₁₃ r₂₁ r₂₂ r₂₃ r₃₁ r₃₂ r₃₃ p_x p_y p_z
 
+# ╔═╡ 59a77662-3164-41cc-bc74-30e76cd00762
+numericalTransforms(t1, t2, t3, t4) = map(x-> x.subs(Dict(
+	L1 => 0.1,
+	L2 => 0.05,
+	L3 => 0.05,
+	L4 => 0.02,
+	d5 => 0.01,
+	θ1 => t1,
+	θ2 => t2,
+	θ3 => t3,
+	θ4 => t4
+)), T_proj)
+
+
+# ╔═╡ 11e186e3-47cd-4f16-aa6c-a784bc1714be
+#Equation
+begin
+	struct Equation
+		lh
+		rh
+	end
+	Base.:+(x::Equation, y::Equation) = Equation(x.lh+y.lh, x.rh+y.rh)
+	Base.:+(x::Equation, y) = Equation(x.lh+y, x.rh+y)
+	Base.:+(x, y::Equation) = Equation(x+y.lh, x+y.rh)
+
+	Base.:-(x::Equation, y::Equation) = Equation(x.lh-y.lh, x.rh-y.rh)
+	Base.:-(x::Equation, y) = Equation(x.lh-y, x.rh-y)
+	Base.:-(x, y::Equation) = Equation(x-y.lh, x-y.rh)
+	
+	Base.:*(x::Equation, y::Equation) = Equation(x.lh*y.lh, x.rh*y.rh)
+	Base.:*(x::Equation, y) = Equation(x.lh*y, x.rh*y)
+	Base.:*(x, y::Equation) = Equation(x*y.lh, x*y.rh)
+	
+	Base.:/(x::Equation, y::Equation) = Equation(x.lh/y.lh, x.rh/y.rh)
+	Base.:/(x::Equation, y) = Equation(x.lh/y, x.rh/y)
+	Base.:/(x, y::Equation) = Equation(x/y.lh, x/y.rh)
+
+	Base.:^(x::Equation, y) = Equation(x.lh^y, x.rh^y)
+	
+	Equation(x::Tuple) = Equation(x[1], x[2])
+	function Equation(A::Array, B::Array) 
+		if size(A) == size(B)
+			[Equation(x) for x in zip(A, B)]
+		else
+			error("size of matrices don't match")
+		end
+
+	end
+end
 
 # ╔═╡ 12bb4f91-d0cd-41ba-9d2f-284ab51eb458
 begin 
@@ -63,114 +106,12 @@ begin
 	
 end
 
-# ╔═╡ f3a37ec8-347b-4221-866f-688bc6781f16
-
-
-# ╔═╡ 30d171e2-f450-4aff-bfa3-52b372236dc5
-dhParams = [
-	0 	0 	0 	θ1
-	0 	L1 	d2 	θ2
-	PI/2 	0 	d3 	θ3
-	0 	L3 	0 	θ4
-	0 	L4 	0 	0
-]
-
-# ╔═╡ 16e67336-e47b-4e56-bf6e-526c50c7854b
-Ts = transforms(dhParams)
-
-# ╔═╡ c2568846-c99e-4e5c-89e3-34ab422b764f
-@vars r₁₁ r₁₂ r₁₃ r₂₁ r₂₂ r₂₃ r₃₁ r₃₂ r₃₃ p_x p_y p_z
-
-# ╔═╡ 75f669cb-4313-4e35-a5b9-6c7fb28455bf
-target = [
-	r₁₁ r₁₂ r₁₃ p_x
-	r₂₁ r₂₂ r₂₃ p_y
-	r₃₁ r₃₂ r₃₃ p_z
-	0 0 0 1
-]
-
-# ╔═╡ d938636d-f678-4210-993a-d5a16f0ff2fa
-@bind i Slider(0:length(Ts)-1, show_value=true)
-
-# ╔═╡ 8726790c-f378-49df-897c-10dd3f07d1d4
-splitEq = split(Ts, i, target)
-
-# ╔═╡ d3cddad4-c4c2-4e36-bcef-1f2b261e51dd
-testEq = splitEq[1][1]
-
-# ╔═╡ 27ab9d60-c4f1-4560-a316-088df657f55b
-string(testEq)
-
 # ╔═╡ 22430021-1347-4d11-a5e7-159915eb9b70
 function getEq(Ts, i, target, n)
 	splitEq = split(Ts, i, target)
 	eqs = collect(zip(splitEq[1], splitEq[2]))
 	eq = simplify.(eqs[n])
 end
-
-# ╔═╡ 4b1d01d1-546e-4121-8eab-3c7162054fe6
-T01 = [
-	 cos(θ1) -sin(θ1) 0 0
-	sin(θ1) cos(θ1) 0 0
- 	 0 		 0  	 1 0
-	 0 		 0 		 0 1
-]
-
-# ╔═╡ 7a1f1531-f99c-4906-93b6-8b52701eb5fe
-T12 = [
-	cos(θ2) -sin(θ2) 0 0
-	0 0 1 0 
-	-sin(θ2) -cos(θ2) 0 0
-	 0 		 0 		 0 1
-]
-
-# ╔═╡ 7f8a3a00-77c4-4761-88f4-933c51e2d6b1
-@vars a2 a3 d4 θ5 θ6
-
-# ╔═╡ 208e0373-199c-4240-8da0-79eb588f9f7b
-T23 = [
-	 cos(θ3) -sin(θ3) 0 a2
-	sin(θ3) cos(θ3) 0 0
- 	 0 		 0  	 1 d3
-	 0 		 0 		 0 1
-]
-
-
-# ╔═╡ aba4e8d1-9c4f-4dbc-938a-9697ce19a6dc
-T34 = [
-	cos(θ4) -sin(θ4) 0 a3
-	0 0 1 d4 
-	-sin(θ4) -cos(θ4) 0 0
-	 0 		 0 		 0 1
-]
-
-# ╔═╡ 97b3e997-f3e9-4fea-9863-c892557a338d
-T45 = [
-	cos(θ5) -sin(θ5) 0 0
-	0 0 -1 0
-	sin(θ5) cos(θ5) 0 0
-	 0 		 0 		 0 1
-]
-
-# ╔═╡ 3ac89c31-f821-4217-822b-64f77729967b
-T56 = [
-	cos(θ6) -sin(θ6) 0 0
-	0 0 1 0
-	-sin(θ6) -cos(θ6) 0 0
-	 0 		 0 		 0 1
-]
-
-# ╔═╡ e3d67624-4784-46a8-a495-10631bcc3e4a
-Tlist = [T01, T12, T23, T34, T45, T56]
-
-# ╔═╡ b343011d-8f6e-4b3f-8da2-9be085b45804
-sympy.simplify(T01^-1)
-
-# ╔═╡ bdcdcb96-d24d-4455-9e16-e3737d865dba
-T12^-1
-
-# ╔═╡ cea3d0ce-d717-49a1-942f-6a97d2b94ae4
-simplify.(reduce(*, Tlist))
 
 # ╔═╡ e5077ec3-6b48-4865-945d-088b8eadfcef
 begin 
@@ -201,30 +142,6 @@ function eqsList(Ts, i, target)
 	shortEq.(eqs2)[:]
 end
 
-# ╔═╡ 1c62a30e-2e44-4c55-b6f7-c483746847f2
-eqsList(Ts, 3, target)
-
-# ╔═╡ 2b87ed37-9daf-455e-9f17-9036cb4f5be5
-eqsList(Tlist, 1, target)
-
-# ╔═╡ 3285d327-f799-4abd-9e70-d4535f6bac88
-typeof(shortEq(simplify(cos(θ1)cos(θ2)-sin(θ2)sin(θ1))))
-
-# ╔═╡ 9a7b3b03-83d3-46fd-b9c1-5d6c3344e7d8
-
-
-# ╔═╡ 83cf5f43-4691-4bf0-ab09-286f7600f547
-
-
-# ╔═╡ 352dfa4b-859c-45b2-9133-1e28504857e0
-
-
-# ╔═╡ e8ab5a3b-a114-452f-962f-5f35a3064ec9
-
-
-# ╔═╡ 061f31b8-4778-4df0-9178-7837601664ac
-
-
 # ╔═╡ a1435da6-fd8b-49b4-aaa6-0750bd305ba1
 function invKine(x, y, z)
 	θ0 = atan(y, x)
@@ -254,84 +171,272 @@ function invKine(x, y, z)
 	return ([θ0, θ1_1, θ2_1, θ3_1],[θ0, θ1_2, θ2_2, θ3_2])
 end
 
-# ╔═╡ 8691754d-8e1a-4e09-b6d2-d46b2542871d
-@vars d5
+# ╔═╡ bcb9d76a-597e-4b34-bb6c-85ca492a156e
+flip(x::Equation) = Equation(x.rh, x.lh)
 
-# ╔═╡ e6e7084f-44c6-4fb9-844b-4f727c7e124a
-projDHs = [
-	0 		0 		0 		θ1
-	PI/2 	0	 	L1 		θ2
-	0 		L2 		0 		θ3
-	0 		L3 		0 		θ4
-	0 		L4 		d5 		0
-]
+# ╔═╡ d7694772-8dfd-40cf-9614-0029d9c9932b
+
+
+# ╔═╡ beffcaa6-ae59-4101-af98-b7e310e4c3c5
+
+
+# ╔═╡ 1fea2926-5878-4e3f-bfa9-7b7372070dfc
+@vars K1
+
+# ╔═╡ 2ad155d5-061f-4a6e-8c86-684f85fb9bfb
+
+
+# ╔═╡ 8de6193b-739e-439c-ac9a-66a1a9957113
+begin
+	s1 = sin(θ1)
+	c1 = cos(θ1)
+
+	s2 = sin(θ2)
+	c2 = cos(θ2)
+
+	s3 = sin(θ3)
+	c3 = cos(θ3)
+
+	s4 = sin(θ4)
+	c4 = cos(θ4)
+
+	s234 = sin(θ2 + θ3 + θ4)
+	c234 = cos(θ2 + θ3 + θ4)
+
+	s23 = sin(θ2 + θ3)
+	c23 = cos(θ2 + θ3)
+end
+
+# ╔═╡ 5dab0eb2-9284-42fe-b100-9932a95e66b5
+
+
+# ╔═╡ f01d172c-8beb-4d99-afa6-b6cbbf898ec9
+printExp(A::Equation) = shortEq(latexstring(A.lh, " = ", A.rh))
+
+# ╔═╡ e598fc26-4fcb-48c9-ab8f-d9efa1082454
+printExp(A::Array{Equation}) = [printExp(x) for x in A]
 
 # ╔═╡ ae721655-fa6e-4b3b-98f5-baa0853968be
-T_proj = transforms(projDHs)
+begin 
+	DH_Table = [
+		0 		0 		L1 		θ1
+		PI/2 	0	 	0 		θ2
+		0 		L2 		0 		θ3
+		0 		L3 		0 		θ4
+		0 		L4 		d5 		0
+	]
 
-# ╔═╡ b1218e42-ab66-4697-9b9c-4e8847a296bd
-Tfinal = simplify.(reduce(*, T_proj))
-
-# ╔═╡ 5139a3e1-da60-465e-b9af-140a3edc484e
-eqsList(T_proj, 0, target)
-
-# ╔═╡ 5c289151-54cf-48e6-9be4-e7955790f391
-# Solution for theta 3
-let
-	eq1 = (Tfinal[1, 4], target[1, 4]).-(L1*sin(θ1) + L4*cos(θ1)*cos(θ2 + θ3 + θ4) + d5*sin(θ1))
-	eq2 = (Tfinal[2, 4], target[2, 4]).-(-L1*cos(θ1) + L4*sin(θ1)*cos(θ2 + θ3 + θ4) - d5*cos(θ1))
-	eq3 = (Tfinal[3, 4], target[3, 4]).-L4*sin(θ2 + θ3 + θ4)
-	shortEqs = [shortEq.(x) for x in [eq1, eq2, eq3]]
-
-	lh = simplify.(eq1.^2 .+ eq2.^2 .+ eq3.^2)[1]
-	rh = simplify.(eq1.^2 .+ eq2.^2 .+ eq3.^2)[2]
-	c3 = simplify((rh - (L2^2 + L3^2))/(2*L2*L3))
-	s3 = sqrt(1-c3^2)
-	theta3 = atan(c3, s3)
+	target = [
+		r₁₁ r₁₂ r₁₃ p_x
+		r₂₁ r₂₂ r₂₃ p_y
+		r₃₁ r₃₂ r₃₃ p_z
+		0 0 0 1
+	]
+	Ts = transforms(DH_Table)
+	Tfinal = simplify.(reduce(*, Ts))
+	eqs = Equation(target, Tfinal)
+	printExp(eqs)[:]
 end
 
-# ╔═╡ 6be2891e-a17a-442d-85cd-16ae138850fb
+# ╔═╡ b0277fd9-fa46-4c35-8a99-aa3b7f7410e2
+fk(t1, t2, t3, t4) = Tfinal.subs(Dict(
+	L1 => 0.1,
+	L2 => 0.05,
+	L3 => 0.05,
+	L4 => 0.03,
+	d5 => 0.02,
+	θ1 => t1,
+	θ2 => t2,
+	θ3 => t3,
+	θ4 => t4
+))
+
+# ╔═╡ 7483771d-0f1f-4626-bd9f-8992b47c644c
+getPos(t1, t2, t3,t4) = convert(Matrix{Float64}, fk(t1, t2, t3, t4).evalf())
+
+# ╔═╡ 7dd632b7-5934-4aef-9a83-2c9c2f46ea21
 let
-	s234 = getEq(T_proj, 0, target, 3)[1]
-	c234 = getEq(T_proj, 0, target, 7)[1]
-	theta234 = atan(c234, s234)
-	theta4 = theta234 - θ3 - θ2
+	t1 = 0
+	t2 = 0
+	t3 = 1.0759
+	t4 = -1.0759
+
+	getPos(t1, t2, t3, t4)
 end
 
-# ╔═╡ a928afbc-0c50-4d1a-8351-44cdf5d5fd8d
-# Solution for theta 2
+# ╔═╡ 32174f91-923c-4b24-8e72-26d323b4112d
+getPos(0.063466518254339, 0.007933314781792, -0.007933314781792, 0.063466518254339)[1:3,4]
+# getPos(0,0,0,0)
+
+# ╔═╡ cf6b58f1-c24e-43bf-a033-afc473ab0a24
+Matrix{Float64}(fk(1, 2, 3, 4).evalf())
+
+# ╔═╡ 116f3b8c-3350-4898-999e-0dd5c0146a31
+eqsList(Ts,1, target)
+
+# ╔═╡ 16202c12-e2f0-4170-b43d-b44cacc3bf19
 let
-	eq1 = (Tfinal[1, 4], target[1, 4]).-(L1*sin(θ1) + L4*cos(θ1)*cos(θ2 + θ3 + θ4) + d5*sin(θ1))
-
-	eq3 = (Tfinal[3, 4], target[3, 4]).-L4*sin(θ2 + θ3 + θ4)
-	# shortEqs = [shortEq.(x) for x in [eq1, eq2, eq3]]
-
-	a = L2*cos(θ1) + L3*cos(θ1)*cos(θ3)
-	c = -L3*cos(θ1)*sin(θ3)
-	e = L3*sin(θ3)
-	f = L2 + L3*cos(θ3)
-
-	d = eq1[2]
-	g = eq3[2]
-	# simplify(a*f-c*e)
-
-	if (a*f - c*e) > 0
-		theta2 = atan(a*g-d*e, d*f-c*g)
-	else
-		theta2 = atan(d*e-a*g, c*d-d*f)
-	end
-
-	theta2
+	foo = Equation(split(Ts, 1, target)[1][14], split(Ts, 1, target)[2][14])
+	printExp(foo)
+	# foo.lh.subs
 end
 
-# ╔═╡ 91e7cc11-ead7-4357-bcf6-450aa8482036
+# ╔═╡ 0cff3d06-0e73-46d2-8a75-4e05cc406a15
+Tfinal
 
+# ╔═╡ bda9481f-2437-40d9-9463-ba5450faffdf
+Tfinal
+
+# ╔═╡ e1fa7878-af5f-416c-b187-d0b73dff8f8e
+eqs[13]-L2*c1*c2
+
+# ╔═╡ 40e131dc-c850-48e5-8d13-44bfc9d14eac
+let 
+	a = eqs[1]
+	b = eqs[2]
+end
+
+# ╔═╡ 918254d6-2a94-4070-81af-c157bce97571
+# Theta 1 Solution
+let
+	A = eqs[1, 3]
+	B = eqs[2, 3]*-1
+	[printExp(flip(B)),
+	printExp(flip(A)),
+	printExp(Equation(θ1, atan(c1, s2)))]
+end
+
+# ╔═╡ bb887cf0-4398-405f-816d-82af94aa4891
+printExp(eqs[15])
+
+# ╔═╡ 2ec4f006-3b7b-4719-b440-86e0d6039d02
+# Theta 3 Solution
+let
+	a = eqs[13] - L4*c1*c234 - d5*s1
+	printExp(a)
+	b = eqs[14] - L4*s1*c234 + d5*c1
+	printExp(b)
+	c = eqs[15] - L1 - L4*s234
+	printExp(c)
+
+	ans = a^2 + b^2 + c^2
+	ans = Equation(simplify(ans.lh), simplify(ans.rh))
+	printExp(ans)
+	cons = Equation(K1, ans.lh)
+	ans = Equation(K1, ans.rh)
+	ans = ans - L2^2 -L3^2
+	ans = ans/(2*L2*L3)
+	printExp(flip(ans))
+	printExp(cons)
+	cons
+	[
+		printExp(cons)
+		printExp(flip(ans))
+	]
+
+end
+
+# ╔═╡ 0bc272cc-d25d-416f-b127-c1f88293b66e
+# Theta 2 Solution
+let
+	e1 = eqs[13]
+	e1 = Equation(e1.lh, e1.rh.subs(c23, sympy.expand_trig(c23)))
+	e1 = e1 - L4*c1*c234 - d5*s1
+	
+	a = L2*c1 + L3*c1*c3
+	c = -L3*c1*s3
+	d = e1.lh
+	
+	e2 = eqs[15]
+	e2 = Equation(e2.lh, e2.rh.subs(s23, sympy.expand_trig(s23)))
+	e2 = e2 - L1 - L4*s234
+	
+	e = L3*s3
+	f = L2 + L3*c3
+	g = e2.lh
+
+	
+	printExp(e1)
+	simplify(a*f-c*d)
+	shortEq(g)
+end
+
+# ╔═╡ 2e8a38aa-3378-45d1-bc45-86a20ba857af
+# Theta 4 solution
+let
+	A = Equation((θ2 + θ3 + θ4), atan(c234, s234)) 
+	A = A - θ3 - θ2
+	[
+		eqs[7] |> flip |> printExp
+		eqs[3] |> flip |> printExp
+		A |> printExp
+	]
+end
+
+# ╔═╡ 18d9b42a-f535-4648-bca1-67594bebee3f
+begin
+	rotx(t) = [
+		1 	0 		0
+		0 	cos(t)	-sin(t)
+		0 	sin(t) 	cos(t)
+	]
+	roty(t) = [
+		cos(t)	0 	sin(t)
+		0 		1 	0
+		-sin(t)	0 	cos(t)
+	]
+	rotz(t) = [
+		cos(t) 	-sin(t) 	0
+		sin(t) 	 cos(t)		0
+		0 		 0 			1
+	]
+end
+
+# ╔═╡ 716116c1-0b9e-4f71-ad44-f74b927b4093
+
+
+# ╔═╡ 1881ad32-45a8-43ad-aca8-d4d9f5835197
+Tfinal
+
+# ╔═╡ bec1b206-a0e9-4e10-b564-d3d39728964c
+
+
+# ╔═╡ c33999f3-e8c0-409a-a49c-598bff1d8df9
+@vars β
+
+# ╔═╡ 2fe4743e-11ff-4280-bdde-91f05331a82a
+x = rotz(θ1)*roty(β)*[1;0;0]
+
+# ╔═╡ f6142c59-e997-4403-bff0-d4c6ec76968d
+y = rotz(θ1)*roty(β)*[0;1;0]
+
+# ╔═╡ fe299495-5bae-4db6-9342-45ffc373f77d
+x.subs(Dict(
+	θ1 => 3*pi/4,
+	β => 0
+))
+
+# ╔═╡ a00a3bf7-eef5-4f8e-8b76-16e447981bd9
+x
+
+# ╔═╡ 2db76d37-2ea2-4424-b09c-d631eb0697fe
+@vars z1 z2 z3
+
+# ╔═╡ 8e11cb3f-460b-408b-ad42-0367753d305c
+z = [z1; z2; 0]
+
+# ╔═╡ 21e8b7a1-6484-4b67-9fc1-b382adbb7c1a
+cross(x, z)
+
+# ╔═╡ 9e248591-8f8f-421d-9767-5a4250591e4c
+rotz(θ1)*roty(β)*rotx(PI/2)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 SymPy = "24249f21-da20-56a4-8eb1-6a02cf4ae2e6"
 
@@ -348,7 +453,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.2"
 manifest_format = "2.0"
-project_hash = "05707eabb8148640957732d131ada7cdb7369c00"
+project_hash = "10601c32d1a002a497cbcc1d68c7b17e367b2c65"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -737,48 +842,53 @@ version = "17.4.0+0"
 # ╔═╡ Cell order:
 # ╠═625a9d5c-62c0-11ed-3363-bf1b1417eda1
 # ╠═34827925-8a91-4ae9-ac10-2b9f412ac97c
-# ╠═3aa6b114-e38f-4f35-80ab-490d0fbe94de
-# ╠═12bb4f91-d0cd-41ba-9d2f-284ab51eb458
-# ╠═f3a37ec8-347b-4221-866f-688bc6781f16
-# ╠═30d171e2-f450-4aff-bfa3-52b372236dc5
-# ╠═16e67336-e47b-4e56-bf6e-526c50c7854b
 # ╠═c2568846-c99e-4e5c-89e3-34ab422b764f
-# ╠═75f669cb-4313-4e35-a5b9-6c7fb28455bf
-# ╠═d938636d-f678-4210-993a-d5a16f0ff2fa
-# ╠═8726790c-f378-49df-897c-10dd3f07d1d4
-# ╠═d3cddad4-c4c2-4e36-bcef-1f2b261e51dd
-# ╠═27ab9d60-c4f1-4560-a316-088df657f55b
-# ╠═08d75333-d848-41f9-b49a-9239b7654658
-# ╠═22430021-1347-4d11-a5e7-159915eb9b70
-# ╠═1c62a30e-2e44-4c55-b6f7-c483746847f2
-# ╠═4b1d01d1-546e-4121-8eab-3c7162054fe6
-# ╠═7a1f1531-f99c-4906-93b6-8b52701eb5fe
-# ╠═7f8a3a00-77c4-4761-88f4-933c51e2d6b1
-# ╠═208e0373-199c-4240-8da0-79eb588f9f7b
-# ╠═aba4e8d1-9c4f-4dbc-938a-9697ce19a6dc
-# ╠═97b3e997-f3e9-4fea-9863-c892557a338d
-# ╠═3ac89c31-f821-4217-822b-64f77729967b
-# ╠═e3d67624-4784-46a8-a495-10631bcc3e4a
-# ╠═b343011d-8f6e-4b3f-8da2-9be085b45804
-# ╠═bdcdcb96-d24d-4455-9e16-e3737d865dba
-# ╠═2b87ed37-9daf-455e-9f17-9036cb4f5be5
-# ╠═cea3d0ce-d717-49a1-942f-6a97d2b94ae4
-# ╠═e5077ec3-6b48-4865-945d-088b8eadfcef
-# ╠═3285d327-f799-4abd-9e70-d4535f6bac88
-# ╠═9a7b3b03-83d3-46fd-b9c1-5d6c3344e7d8
-# ╠═83cf5f43-4691-4bf0-ab09-286f7600f547
-# ╠═352dfa4b-859c-45b2-9133-1e28504857e0
-# ╠═e8ab5a3b-a114-452f-962f-5f35a3064ec9
-# ╠═061f31b8-4778-4df0-9178-7837601664ac
-# ╠═a1435da6-fd8b-49b4-aaa6-0750bd305ba1
-# ╠═8691754d-8e1a-4e09-b6d2-d46b2542871d
-# ╠═e6e7084f-44c6-4fb9-844b-4f727c7e124a
+# ╠═12bb4f91-d0cd-41ba-9d2f-284ab51eb458
+# ╟─08d75333-d848-41f9-b49a-9239b7654658
+# ╟─22430021-1347-4d11-a5e7-159915eb9b70
+# ╟─e5077ec3-6b48-4865-945d-088b8eadfcef
+# ╟─59a77662-3164-41cc-bc74-30e76cd00762
+# ╟─a1435da6-fd8b-49b4-aaa6-0750bd305ba1
+# ╠═b0277fd9-fa46-4c35-8a99-aa3b7f7410e2
+# ╟─11e186e3-47cd-4f16-aa6c-a784bc1714be
+# ╠═7dd632b7-5934-4aef-9a83-2c9c2f46ea21
+# ╠═7483771d-0f1f-4626-bd9f-8992b47c644c
+# ╠═32174f91-923c-4b24-8e72-26d323b4112d
+# ╠═116f3b8c-3350-4898-999e-0dd5c0146a31
+# ╠═16202c12-e2f0-4170-b43d-b44cacc3bf19
+# ╠═cf6b58f1-c24e-43bf-a033-afc473ab0a24
+# ╠═bcb9d76a-597e-4b34-bb6c-85ca492a156e
+# ╠═d7694772-8dfd-40cf-9614-0029d9c9932b
+# ╠═0cff3d06-0e73-46d2-8a75-4e05cc406a15
 # ╠═ae721655-fa6e-4b3b-98f5-baa0853968be
-# ╠═b1218e42-ab66-4697-9b9c-4e8847a296bd
-# ╠═5139a3e1-da60-465e-b9af-140a3edc484e
-# ╠═5c289151-54cf-48e6-9be4-e7955790f391
-# ╠═6be2891e-a17a-442d-85cd-16ae138850fb
-# ╠═a928afbc-0c50-4d1a-8351-44cdf5d5fd8d
-# ╠═91e7cc11-ead7-4357-bcf6-450aa8482036
+# ╠═beffcaa6-ae59-4101-af98-b7e310e4c3c5
+# ╠═918254d6-2a94-4070-81af-c157bce97571
+# ╠═1fea2926-5878-4e3f-bfa9-7b7372070dfc
+# ╠═bb887cf0-4398-405f-816d-82af94aa4891
+# ╠═bda9481f-2437-40d9-9463-ba5450faffdf
+# ╠═2ec4f006-3b7b-4719-b440-86e0d6039d02
+# ╠═2ad155d5-061f-4a6e-8c86-684f85fb9bfb
+# ╠═0bc272cc-d25d-416f-b127-c1f88293b66e
+# ╠═2e8a38aa-3378-45d1-bc45-86a20ba857af
+# ╠═e1fa7878-af5f-416c-b187-d0b73dff8f8e
+# ╠═40e131dc-c850-48e5-8d13-44bfc9d14eac
+# ╠═8de6193b-739e-439c-ac9a-66a1a9957113
+# ╠═5dab0eb2-9284-42fe-b100-9932a95e66b5
+# ╠═f01d172c-8beb-4d99-afa6-b6cbbf898ec9
+# ╠═e598fc26-4fcb-48c9-ab8f-d9efa1082454
+# ╠═18d9b42a-f535-4648-bca1-67594bebee3f
+# ╠═2fe4743e-11ff-4280-bdde-91f05331a82a
+# ╠═f6142c59-e997-4403-bff0-d4c6ec76968d
+# ╠═716116c1-0b9e-4f71-ad44-f74b927b4093
+# ╠═1881ad32-45a8-43ad-aca8-d4d9f5835197
+# ╠═bec1b206-a0e9-4e10-b564-d3d39728964c
+# ╠═fe299495-5bae-4db6-9342-45ffc373f77d
+# ╠═c33999f3-e8c0-409a-a49c-598bff1d8df9
+# ╠═a00a3bf7-eef5-4f8e-8b76-16e447981bd9
+# ╠═2db76d37-2ea2-4424-b09c-d631eb0697fe
+# ╠═8e11cb3f-460b-408b-ad42-0367753d305c
+# ╠═21e8b7a1-6484-4b67-9fc1-b382adbb7c1a
+# ╠═78fc5793-bd2d-4159-a838-3a56e1b0ee35
+# ╠═9e248591-8f8f-421d-9767-5a4250591e4c
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
